@@ -1,0 +1,135 @@
+import 'package:flutter/material.dart';
+import 'package:flutter_callkit_incoming/entities/entities.dart';
+import 'package:flutter_callkit_incoming/flutter_callkit_incoming.dart';
+import 'package:flutter_tts/flutter_tts.dart';
+import 'package:uuid/uuid.dart';
+
+void main() {
+  WidgetsFlutterBinding.ensureInitialized();
+  runApp(const HabitCallerApp());
+}
+
+class HabitCallerApp extends StatelessWidget {
+  const HabitCallerApp({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      debugShowCheckedModeBanner: false,
+      title: 'Habit Caller',
+      theme: ThemeData(primarySwatch: Colors.indigo, useMaterial3: true),
+      home: const HomeScreen(),
+    );
+  }
+}
+
+class HomeScreen extends StatefulWidget {
+  const HomeScreen({super.key});
+
+  @override
+  State<HomeScreen> createState() => _HomeScreenState();
+}
+
+class _HomeScreenState extends State<HomeScreen> {
+  final FlutterTts flutterTts = FlutterTts();
+  final TextEditingController _habitController =
+      TextEditingController(text: "قراءة 10 صفحات من الكتاب");
+  String _callStatus = "في انتظار موعد العادة...";
+
+  @override
+  void initState() {
+    super.initState();
+    _initTts();
+    _listenToCallEvents();
+  }
+
+  void _initTts() async {
+    await flutterTts.setLanguage("ar");
+    await flutterTts.setPitch(1.0);
+    await flutterTts.setSpeechRate(0.5);
+  }
+
+  void _listenToCallEvents() {
+    FlutterCallkitIncoming.onEvent.listen((CallEvent? event) async {
+      if (event == null) return;
+
+      switch (event.event) {
+        case Event.actionCallAccept:
+          setState(() {
+            _callStatus = "تم الرد على المكالمة! العادة جارية...";
+          });
+          final habitTitle =
+              event.body['extra']?['habitName'] ?? "عادتك اليومية";
+          await Future.delayed(const Duration(milliseconds: 500));
+          await flutterTts.speak("مرحباً بك! حان وقت إنجاز عادتك: $habitTitle.");
+          break;
+        case Event.actionCallDecline:
+          setState(() {
+            _callStatus = "تم تأجيل العادة أو رفض المكالمة.";
+          });
+          break;
+        default:
+          break;
+      }
+    });
+  }
+
+  Future<void> triggerIncomingCall(String habitName) async {
+    final callId = const Uuid().v4();
+    CallKitParams callKitParams = CallKitParams(
+      id: callId,
+      nameCaller: 'تذكير العادات',
+      appName: 'Habit Caller',
+      handle: habitName,
+      type: 0,
+      duration: 30000,
+      textAccept: 'رد',
+      textDecline: 'رفض',
+      extra: <String, dynamic>{'habitName': habitName},
+    );
+    await FlutterCallkitIncoming.showCallkitIncoming(callKitParams);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('متابع العادات 📞'),
+        centerTitle: true,
+      ),
+      body: Padding(
+        padding: const EdgeInsets.all(20.0),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            TextField(
+              controller: _habitController,
+              decoration: const InputDecoration(
+                labelText: 'اسم العادة اليومية',
+                border: OutlineInputBorder(),
+              ),
+              textAlign: TextAlign.right,
+            ),
+            const SizedBox(height: 25),
+            ElevatedButton.icon(
+              style: ElevatedButton.styleFrom(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
+                backgroundColor: Colors.green,
+                foregroundColor: Colors.white,
+              ),
+              onPressed: () => triggerIncomingCall(_habitController.text),
+              icon: const Icon(Icons.phone_in_talk),
+              label: const Text('تجربة اتصال التذكير الآن'),
+            ),
+            const SizedBox(height: 30),
+            Text(
+              'الحالة: $_callStatus',
+              style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
