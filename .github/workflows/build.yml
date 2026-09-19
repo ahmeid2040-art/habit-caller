@@ -5,28 +5,37 @@ on:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
       - name: Setup Java
         uses: actions/setup-java@v4
         with:
-          distribution: 'zulu'
+          distribution: 'temurin'
           java-version: '17'
 
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
+          flutter-version: '3.19.6'
           channel: 'stable'
           cache: true
 
-      - name: Create and Configure App
+      - name: Build Application
         run: |
-          flutter create habit_app --org com.habitcaller --platforms=android
-          cd habit_app
-          flutter pub add flutter_callkit_incoming flutter_tts uuid
-          sed -i 's/minSdkVersion = flutter.minSdkVersion/minSdkVersion = 23/g' android/app/build.gradle || true
-          sed -i 's/minSdk = flutter.minSdkVersion/minSdk = 23/g' android/app/build.gradle || true
+          # إنشاء تطبيق فلاتر نظيف
+          flutter create my_app --platforms=android --org com.habitcaller
+          cd my_app
 
+          # إضافة الحزم بالإصدارات المتوافقة تماماً
+          flutter pub add flutter_callkit_incoming:2.1.0 flutter_tts:4.0.2 uuid:4.4.0
+
+          # ضبط إعدادات أندرويد لتقبل شاشة الاتصال
+          sed -i 's/minSdkVersion flutter.minSdkVersion/minSdkVersion 23/g' android/app/build.gradle
+
+          # كتابة كود التطبيق في ملف main.dart
           cat << 'EOF' > lib/main.dart
           import 'package:flutter/material.dart';
           import 'package:flutter_callkit_incoming/entities/entities.dart';
@@ -164,10 +173,11 @@ jobs:
           }
           EOF
 
+          # بناء ملف APK
           flutter build apk --release --no-tree-shake-icons
           cp build/app/outputs/flutter-apk/app-release.apk ../HabitCaller.apk
 
-      - name: Upload APK Artifact
+      - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: HabitCaller-Application
